@@ -65,6 +65,23 @@ Install the `flow_matching` package in an editable mode:
 pip install -e .
 ```
 
+### 本地开发环境（无 Conda 时使用 venv）
+
+若未安装 Conda，可使用项目内已配置的 Python 虚拟环境：
+
+1. **激活虚拟环境**（在项目根目录 `flow_matching/` 下）：
+   ```bash
+   source .venv/bin/activate   # Linux/macOS
+   ```
+
+2. **使用 pre-commit 时**，若遇到缓存目录权限问题，可指定项目内缓存：
+   ```bash
+   export PRE_COMMIT_HOME="$(pwd)/.cache/pre-commit"
+   pre-commit install
+   ```
+
+3. 环境已包含：Python 3.12、PyTorch（含 CUDA）、torchdiffeq、flow_matching（可编辑安装）及 pre-commit。
+
 ## FAQ
 
 #### I want to train a Flow Matching model, where can I find the training code?

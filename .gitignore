@@ -35,6 +35,10 @@ MANIFEST
 # VSCode
 *.vscode
 
+# Virtual env and pre-commit cache
+.venv/
+.cache/
+
 # Others
 examples/image_generation/data
 examples/*/output_dir*
