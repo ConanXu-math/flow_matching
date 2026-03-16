@@ -46,8 +46,10 @@ def train_one_epoch(
 ):
     gc.collect()
     model.train(True)
-    batch_loss = MeanMetric().to(device, non_blocking=True)
-    epoch_loss = MeanMetric().to(device, non_blocking=True)
+    # 这里的指标仅用于日志输出，不需要跨 rank 同步。
+    # 多卡下若只在 rank0 调用 compute()，默认的 dist 同步会导致 collective mismatch。
+    batch_loss = MeanMetric(sync_on_compute=False).to(device, non_blocking=True)
+    epoch_loss = MeanMetric(sync_on_compute=False).to(device, non_blocking=True)
 
     accum_iter = args.accum_iter
     if args.discrete_flow_matching:

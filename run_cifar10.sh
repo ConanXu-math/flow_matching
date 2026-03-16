@@ -13,6 +13,9 @@ DATA_PATH="$PROJECT_DIR/data/image_generation"
 # 是否只做快速测试（跑极少量 step / epoch）
 TEST_RUN=false
 
+# 多卡“保守模式”：禁用 SHM/P2P/IB，避免多人共享机器下 NCCL 卡死
+SAFE_DDP=true
+
 # 为本次实验生成一个时间戳目录，避免多次运行互相覆盖
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 if [ "$TEST_RUN" = true ]; then
@@ -21,8 +24,9 @@ else
   OUTPUT_ROOT="$PROJECT_DIR/outputs/cifar10_8gpu/$TIMESTAMP"
 fi
 
-# 只使用指定的 GPU（0,1,2,4,5,6,7）
-export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
+# 只使用指定的 GPU
+# 共享机器上常见 0/7 被他人占用或状态异常，默认先避开它们提高多卡启动成功率
+export CUDA_VISIBLE_DEVICES="1,2,3,4,5,6"
 
 if [ "$TEST_RUN" = true ]; then
   # 测试模式：单卡、小 batch、很少 epoch
@@ -31,10 +35,11 @@ if [ "$TEST_RUN" = true ]; then
   EPOCHS=2           # 跑很少的 epoch，看流程是否正常
   EVAL_FREQ=1        # 每个 epoch 都评估一次
   FID_SAMPLES=512    # 少量样本即可
+  NUM_WORKERS=0
 else
   # 正式训练配置
   # 使用的 GPU 数量（单机，需要与上面的 CUDA_VISIBLE_DEVICES 个数一致）
-  NGPUS=4
+  NGPUS=6
 
   # 每张 GPU 的 batch size，有效 batch = BATCH_SIZE * NGPUS * ACCUM_ITER
   BATCH_SIZE=64
@@ -43,6 +48,8 @@ else
   EPOCHS=400    # 总 epoch 数
   EVAL_FREQ=10        # 每多少个 epoch 评估并生成一次图像
   FID_SAMPLES=10000  # 评估时用于 FID 的样本数
+  # 多卡时先把 DataLoader 压力降下来；如果跑通再逐步加回 4/8/10
+  NUM_WORKERS=1
 fi
 
 # 2. 进入工程目录并激活虚拟环境
@@ -62,6 +69,8 @@ echo "  Epochs      : $EPOCHS"
 echo "  Eval freq   : $EVAL_FREQ"
 echo "  Output root : $OUTPUT_ROOT"
 echo "  Test run    : $TEST_RUN"
+echo "  Safe DDP    : $SAFE_DDP"
+echo "  Num workers : $NUM_WORKERS"
 echo
 
 # 5. 启动多卡训练
@@ -71,10 +80,20 @@ if [ "$TEST_RUN" = true ]; then
 fi
 
 # --- 核心优化：确保环境纯净 ---
-export NCCL_SHM_DISABLE=1  # 彻底禁用共享内存通信，强制走 Socket (慢点但稳)
-export NCCL_IB_DISABLE=1
-export NCCL_SOCKET_IFNAME=eth0
-export NCCL_DEBUG=INFO  # 建议先开启，能看到通信是否建立成功
+if [ "$SAFE_DDP" = true ]; then
+  export NCCL_SHM_DISABLE=1   # 禁用 /dev/shm 通信（多人共享机器最常见冲突点）
+  export NCCL_P2P_DISABLE=1   # 禁用 P2P/NVLink
+  export NCCL_IB_DISABLE=1    # 禁用 IB/RDMA
+  # 不限制网卡名（很多机器网卡命名/策略各异），让 NCCL 自己选可用接口
+  unset NCCL_SOCKET_IFNAME
+  # 强制 IPv4，避免 IPv6/解析导致的握手异常
+  export NCCL_SOCKET_FAMILY=AF_INET
+  export GLOO_SOCKET_FAMILY=AF_INET
+  # 打开更细的 NCCL 初始化/网络日志，方便定位 Abort 原因
+  export NCCL_DEBUG=INFO
+  export NCCL_DEBUG_SUBSYS=INIT,NET
+  export TORCH_DISTRIBUTED_DEBUG=DETAIL
+fi
 
 # 自动生成一个 20000-30000 之间的随机端口，彻底避开冲突
 export MASTER_PORT=$(shuf -i 20000-30000 -n 1)
@@ -92,6 +111,7 @@ torchrun \
   --epochs "$EPOCHS" \
   --eval_frequency "$EVAL_FREQ" \
   --fid_samples "$FID_SAMPLES" \
+  --num_workers "$NUM_WORKERS" \
   --data_path "$DATA_PATH" \
   --output_dir "$OUTPUT_ROOT" \
   "${EXTRA_ARGS[@]}"
