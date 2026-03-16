@@ -35,7 +35,6 @@ if [ "$TEST_RUN" = true ]; then
   EPOCHS=2           # 跑很少的 epoch，看流程是否正常
   EVAL_FREQ=1        # 每个 epoch 都评估一次
   FID_SAMPLES=512    # 少量样本即可
-  NUM_WORKERS=0
 else
   # 正式训练配置
   # 使用的 GPU 数量（单机，需要与上面的 CUDA_VISIBLE_DEVICES 个数一致）
@@ -48,8 +47,6 @@ else
   EPOCHS=800    # 总 epoch 数
   EVAL_FREQ=10        # 每多少个 epoch 评估并生成一次图像
   FID_SAMPLES=10000  # 评估时用于 FID 的样本数
-  # 多卡时先把 DataLoader 压力降下来；如果跑通再逐步加回 4/8/10
-  NUM_WORKERS=1
 fi
 
 # 2. 进入工程目录并激活虚拟环境
@@ -70,7 +67,6 @@ echo "  Eval freq   : $EVAL_FREQ"
 echo "  Output root : $OUTPUT_ROOT"
 echo "  Test run    : $TEST_RUN"
 echo "  Safe DDP    : $SAFE_DDP"
-echo "  Num workers : $NUM_WORKERS"
 echo
 
 # 5. 启动多卡训练
@@ -111,7 +107,6 @@ torchrun \
   --epochs "$EPOCHS" \
   --eval_frequency "$EVAL_FREQ" \
   --fid_samples "$FID_SAMPLES" \
-  --num_workers "$NUM_WORKERS" \
   --data_path "$DATA_PATH" \
   --output_dir "$OUTPUT_ROOT" \
   "${EXTRA_ARGS[@]}"
