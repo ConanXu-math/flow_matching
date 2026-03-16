@@ -17,7 +17,7 @@ def get_args_parser():
     parser = argparse.ArgumentParser("Image dataset training", add_help=False)
     parser.add_argument(
         "--batch_size",
-        default=32,
+        default=256,
         type=int,
         help="Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus",
     )
@@ -155,7 +155,7 @@ def get_args_parser():
     )
     parser.add_argument(
         "--eval_frequency",
-        default=50,
+        default=5,
         type=int,
         help="Frequency (in number of epochs) for running FID evaluation. -1 to never run evaluation.",
     )

@@ -4,7 +4,13 @@
 # This source code is licensed under the CC-by-NC license found in the
 # LICENSE file in the root directory of this source tree.
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-
+"""
+torchrun --nproc_per_node=2 examples/image/train.py \
+  --dataset cifar10 \
+  --batch_size 128 \
+  --data_path ./data/image_generation \
+  --output_dir outputs/cifar10_8gpu
+"""
 import datetime
 import json
 import logging
@@ -112,7 +118,8 @@ def main(args):
 
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[args.gpu], find_unused_parameters=True
+            model,
+            device_ids=[args.gpu],
         )
         model_without_ddp = model.module
 
@@ -220,5 +227,6 @@ if __name__ == "__main__":
     args = get_args_parser()
     args = args.parse_args()
     if args.output_dir:
+        # 只负责创建由外部传入的输出目录（多进程下保持一致）
         Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     main(args)

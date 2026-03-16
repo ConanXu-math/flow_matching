@@ -15,12 +15,13 @@ from flow_matching.path.scheduler import PolynomialConvexScheduler
 from models.ema import EMA
 from torch.nn.parallel import DistributedDataParallel
 from torchmetrics.aggregation import MeanMetric
+from training import distributed_mode
 from training.grad_scaler import NativeScalerWithGradNormCount
 
 logger = logging.getLogger(__name__)
 
 MASK_TOKEN = 256
-PRINT_FREQUENCY = 50
+PRINT_FREQUENCY = 5
 
 
 def skewed_timestep_sample(num_samples: int, device: torch.device) -> torch.Tensor:
@@ -97,7 +98,7 @@ def train_one_epoch(
             x_t = path_sample.x_t
             u_t = path_sample.dx_t
 
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast("cuda"):
                 loss = torch.pow(model(x_t, t, extra=conditioning) - u_t, 2).mean()
 
         loss_value = loss.item()
@@ -128,7 +129,7 @@ def train_one_epoch(
             model.module.update_ema()
 
         lr = optimizer.param_groups[0]["lr"]
-        if data_iter_step % PRINT_FREQUENCY == 0:
+        if data_iter_step % PRINT_FREQUENCY == 0 and distributed_mode.is_main_process():
             logger.info(
                 f"Epoch {epoch} [{data_iter_step}/{len(data_loader)}]: loss = {batch_loss.compute()}, lr = {lr}"
             )

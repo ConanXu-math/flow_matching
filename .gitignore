@@ -75,3 +75,13 @@ output_dir/
 *mixture_uniform_step=320001/
 *.out
 *.err
+
+# Local training artifacts (image & text examples)
+data/
+data/*
+examples/image_generation/
+examples/image_generation/*
+examples/text/.hydra/
+examples/text/outputs/
+examples/text/work_dir*/
+examples/text/*/checkpoints/
