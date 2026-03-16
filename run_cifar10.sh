@@ -26,12 +26,12 @@ fi
 
 # 只使用指定的 GPU
 # 共享机器上常见 0/7 被他人占用或状态异常，默认先避开它们提高多卡启动成功率
-export CUDA_VISIBLE_DEVICES="1,2,3,4,5,6"
+export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 
 if [ "$TEST_RUN" = true ]; then
   # 测试模式：单卡、小 batch、很少 epoch
   NGPUS=1
-  BATCH_SIZE=32
+  BATCH_SIZE=64
   EPOCHS=2           # 跑很少的 epoch，看流程是否正常
   EVAL_FREQ=1        # 每个 epoch 都评估一次
   FID_SAMPLES=512    # 少量样本即可
@@ -39,13 +39,13 @@ if [ "$TEST_RUN" = true ]; then
 else
   # 正式训练配置
   # 使用的 GPU 数量（单机，需要与上面的 CUDA_VISIBLE_DEVICES 个数一致）
-  NGPUS=6
+  NGPUS=8
 
   # 每张 GPU 的 batch size，有效 batch = BATCH_SIZE * NGPUS * ACCUM_ITER
-  BATCH_SIZE=64
+  BATCH_SIZE=128
 
   # 训练轮数和评估频率
-  EPOCHS=400    # 总 epoch 数
+  EPOCHS=800    # 总 epoch 数
   EVAL_FREQ=10        # 每多少个 epoch 评估并生成一次图像
   FID_SAMPLES=10000  # 评估时用于 FID 的样本数
   # 多卡时先把 DataLoader 压力降下来；如果跑通再逐步加回 4/8/10

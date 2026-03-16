@@ -10,6 +10,7 @@ import math
 from typing import Iterable
 
 import torch
+import torch.distributed as dist
 from flow_matching.path import CondOTProbPath, MixtureDiscreteProbPath
 from flow_matching.path.scheduler import PolynomialConvexScheduler
 from models.ema import EMA
@@ -50,6 +51,14 @@ def train_one_epoch(
     # 多卡下若只在 rank0 调用 compute()，默认的 dist 同步会导致 collective mismatch。
     batch_loss = MeanMetric(sync_on_compute=False).to(device, non_blocking=True)
     epoch_loss = MeanMetric(sync_on_compute=False).to(device, non_blocking=True)
+
+    def _global_mean(x: torch.Tensor) -> torch.Tensor:
+        if distributed_mode.get_world_size() == 1:
+            return x
+        x = x.detach().to(device=device, dtype=torch.float32)
+        dist.all_reduce(x, op=dist.ReduceOp.SUM)
+        x /= distributed_mode.get_world_size()
+        return x
 
     accum_iter = args.accum_iter
     if args.discrete_flow_matching:
@@ -131,10 +140,14 @@ def train_one_epoch(
             model.module.update_ema()
 
         lr = optimizer.param_groups[0]["lr"]
-        if data_iter_step % PRINT_FREQUENCY == 0 and distributed_mode.is_main_process():
-            logger.info(
-                f"Epoch {epoch} [{data_iter_step}/{len(data_loader)}]: loss = {batch_loss.compute()}, lr = {lr}"
-            )
+        if data_iter_step % PRINT_FREQUENCY == 0:
+            # 所有 rank 都执行相同的 collective，避免 mismatch；仅 rank0 打印。
+            global_batch_loss = _global_mean(batch_loss.compute())
+            if distributed_mode.is_main_process():
+                logger.info(
+                    f"Epoch {epoch} [{data_iter_step}/{len(data_loader)}]: loss = {global_batch_loss}, lr = {lr}"
+                )
 
     lr_schedule.step()
-    return {"loss": float(epoch_loss.compute().detach().cpu())}
+    global_epoch_loss = _global_mean(epoch_loss.compute())
+    return {"loss": float(global_epoch_loss.detach().cpu())}
