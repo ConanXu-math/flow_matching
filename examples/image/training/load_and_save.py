@@ -51,7 +51,8 @@ def load_model(args, model_without_ddp, optimizer, loss_scaler, lr_schedule):
                 args.resume, map_location="cpu", check_hash=True
             )
         else:
-            checkpoint = torch.load(args.resume, map_location="cpu")
+            # weights_only=False: checkpoint 内含 argparse.Namespace 等，PyTorch 2.6+ 默认 True 会报错
+            checkpoint = torch.load(args.resume, map_location="cpu", weights_only=False)
         model_without_ddp.load_state_dict(checkpoint["model"])
         print("Resume checkpoint %s" % args.resume)
         if (

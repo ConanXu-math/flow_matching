@@ -45,7 +45,7 @@ else
 
   # 训练轮数和评估频率
   EPOCHS=800    # 总 epoch 数
-  EVAL_FREQ=10        # 每多少个 epoch 评估并生成一次图像
+  EVAL_FREQ=50      # 每多少个 epoch 评估并生成一次图像
   FID_SAMPLES=10000  # 评估时用于 FID 的样本数
 fi
 
@@ -109,4 +109,5 @@ torchrun \
   --fid_samples "$FID_SAMPLES" \
   --data_path "$DATA_PATH" \
   --output_dir "$OUTPUT_ROOT" \
+  --decay_lr \
   "${EXTRA_ARGS[@]}"

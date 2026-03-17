@@ -13,6 +13,7 @@ from typing import Iterable
 import PIL.Image
 
 import torch
+import torch.nn.functional as F
 from flow_matching.path import MixtureDiscreteProbPath
 from flow_matching.path.scheduler import PolynomialConvexScheduler
 from flow_matching.solver import MixtureDiscreteEulerSolver
@@ -31,6 +32,8 @@ from training.train_loop import MASK_TOKEN
 logger = logging.getLogger(__name__)
 
 PRINT_FREQUENCY = 50
+# 保存 snapshot 时放大到该尺寸（CIFAR10 为 32x32，放大后便于查看）
+SNAPSHOT_SAVE_SIZE = 128
 
 
 class CFGScaledModel(ModelWrapper):
@@ -181,8 +184,16 @@ def eval_model(
             fid_metric.update(synthetic_samples, real=False)
             num_synthetic += synthetic_samples.shape[0]
             if not snapshots_saved and args.output_dir:
+                to_save = synthetic_samples[:64]
+                if to_save.shape[-1] != SNAPSHOT_SAVE_SIZE:
+                    to_save = F.interpolate(
+                        to_save,
+                        size=(SNAPSHOT_SAVE_SIZE, SNAPSHOT_SAVE_SIZE),
+                        mode="bilinear",
+                        align_corners=False,
+                    )
                 save_image(
-                    synthetic_samples[:32],
+                    to_save,
                     fp=Path(args.output_dir)
                     / "snapshots"
                     / f"{epoch}_{data_iter_step}.png",
@@ -205,7 +216,13 @@ def eval_model(
                         image_dir
                         / f"{distributed_mode.get_rank()}_{data_iter_step}_{batch_index}.png"
                     )
-                    PIL.Image.fromarray(image_np, "RGB").save(image_path)
+                    pil_img = PIL.Image.fromarray(image_np, "RGB")
+                    if pil_img.width != SNAPSHOT_SAVE_SIZE:
+                        pil_img = pil_img.resize(
+                            (SNAPSHOT_SAVE_SIZE, SNAPSHOT_SAVE_SIZE),
+                            PIL.Image.BILINEAR,
+                        )
+                    pil_img.save(image_path)
 
         if not args.compute_fid:
             return {}
