@@ -16,6 +16,8 @@ OUTPUT_DIR="${2:-$(dirname "$CHECKPOINT")}"
 cd "$PROJECT_DIR"
 source "$ENV_DIR/bin/activate"
 export TORCH_HOME="$PROJECT_DIR/.cache/torch"
+# torch-fidelity/torch.hub 会把 Inception 权重下载到 $TORCH_HOME/hub/checkpoints
+mkdir -p "$TORCH_HOME/hub/checkpoints"
 
 # 单卡即可；加载后 start_epoch=checkpoint.epoch+1，epochs 设大一些保证会跑一步 eval
 torchrun --nproc_per_node=1 examples/image/train.py \
@@ -27,6 +29,7 @@ torchrun --nproc_per_node=1 examples/image/train.py \
   --eval_only \
   --epochs 10000 \
   --eval_frequency 1 \
-  --fid_samples 512
+  --fid_samples 10000 \
+  --compute_fid
 
 echo "Done. Check snapshots under: $OUTPUT_DIR/snapshots/"
